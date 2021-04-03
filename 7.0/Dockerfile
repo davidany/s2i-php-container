@@ -17,7 +17,7 @@ ENV PHP_VERSION=7.0 \
     PATH=$PATH:/opt/rh/rh-php70/root/usr/bin
 
 ENV SUMMARY="Platform for building and running PHP $PHP_VERSION applications" \
-    DESCRIPTION="PHP $PHP_VERSION available as docker container is a base platform for \
+    DESCRIPTION="PHP $PHP_VERSION available as container is a base platform for \
 building and running various PHP $PHP_VERSION applications and frameworks. \
 PHP is an HTML-embedded scripting language. PHP attempts to make it easy for developers \
 to write dynamically generated web pages. PHP also offers built-in database integration \
@@ -34,7 +34,7 @@ LABEL summary="${SUMMARY}" \
       io.openshift.s2i.scripts-url="image:///usr/libexec/s2i" \
       io.s2i.scripts-url="image:///usr/libexec/s2i" \
       name="centos/${NAME}-${PHP_VER_SHORT}-centos7" \
-      com.redhat.component="rh-${NAME}${PHP_VER_SHORT}-docker" \
+      com.redhat.component="rh-${NAME}${PHP_VER_SHORT}-container" \
       version="${PHP_VERSION}" \
       help="For more information visit https://github.com/sclorg/s2i-${NAME}-container" \
       usage="s2i build https://github.com/sclorg/s2i-php-container.git --context-dir=${PHP_VERSION}/test/test-app centos/${NAME}-${PHP_VER_SHORT}-centos7 sample-server" \
@@ -42,14 +42,13 @@ LABEL summary="${SUMMARY}" \
 
 # Install Apache httpd and PHP
 RUN yum install -y centos-release-scl && \
-    yum-config-manager --enable centos-sclo-rh-testing && \
     INSTALL_PKGS="rh-php70 rh-php70-php rh-php70-php-mysqlnd rh-php70-php-pgsql rh-php70-php-bcmath \
                   rh-php70-php-gd rh-php70-php-intl rh-php70-php-ldap rh-php70-php-mbstring rh-php70-php-pdo \
                   rh-php70-php-process rh-php70-php-soap rh-php70-php-opcache rh-php70-php-xml \
                   rh-php70-php-gmp httpd24-mod_ssl" && \
     yum install -y --setopt=tsflags=nodocs $INSTALL_PKGS --nogpgcheck && \
     rpm -V $INSTALL_PKGS && \
-    yum clean all -y
+    yum -y clean all --enablerepo='*'
 
 ENV PHP_CONTAINER_SCRIPTS_PATH=/usr/share/container-scripts/php/ \
     APP_DATA=${APP_ROOT}/src \

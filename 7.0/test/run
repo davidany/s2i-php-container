@@ -12,6 +12,8 @@ IMAGE_NAME=${IMAGE_NAME-centos/php-70-centos-candidate}
 test_dir="$(readlink -zf $(dirname "${BASH_SOURCE[0]}"))"
 image_dir=$(readlink -zf ${test_dir}/..)
 
+source "${test_dir}/test-lib.sh"
+
 # TODO: This should be part of the image metadata
 test_port=8080
 test_port_ssl=8443
@@ -33,7 +35,7 @@ container_ip() {
 }
 
 run_s2i_build() {
-  s2i build ${s2i_args} file://${test_dir}/test-app ${IMAGE_NAME} ${IMAGE_NAME}-testapp
+  ct_s2i_build_as_df file://${test_dir}/test-app ${IMAGE_NAME} ${IMAGE_NAME}-testapp ${s2i_args} $(ct_build_s2i_npm_variables)
 }
 
 prepare() {
@@ -99,7 +101,7 @@ wait_for_cid() {
 
 test_s2i_usage() {
   info "Testing 's2i usage'"
-  s2i usage ${s2i_args} ${IMAGE_NAME} &>/dev/null
+  ct_s2i_usage ${IMAGE_NAME} ${s2i_args} &>/dev/null
 }
 
 test_docker_run_usage() {
@@ -125,6 +127,18 @@ test_scl_usage() {
   out=$(docker exec $(cat ${cid_file}) /bin/sh -ic "${run_cmd}" 2>&1)
   if ! echo "${out}" | grep -q "${expected}"; then
     echo "ERROR[exec /bin/sh -ic "${run_cmd}"] Expected '${expected}', got '${out}'"
+    return 1
+  fi
+}
+
+test_session() {
+  local check_port=$1 ; shift
+  local check_protocol=${1:-http}
+  cat $cid_file
+  info "Testing PHP session"
+  response=$(curl -s -k ${check_protocol}://$(container_ip):${check_port}/session_test.php)
+  if [ "${response}" != "Passed" ]; then
+    echo "ERROR starting PHP session. Test app returned: '${response}'"
     return 1
   fi
 }
@@ -163,6 +177,9 @@ test_application() {
   test_scl_usage "php --version" "7.0"
   check_result $?
 
+  test_session ${test_port}
+  check_result $?
+
   test_connection ${test_port}
   check_result $?
   test_connection ${test_port_ssl} https
@@ -171,7 +188,6 @@ test_application() {
 }
 
 test_ssl() {
-  source ${image_dir}/common/test-lib.sh
   local cert_dir=/tmp
   local cert_base=mycert
   ct_gen_self_signed_cert_pem ${cert_dir} ${cert_base}
@@ -181,7 +197,7 @@ test_ssl() {
 }
 
 test_ssl_own_cert() {
-  s2i build ${s2i_args} file://${test_dir}/self-signed-ssl ${IMAGE_NAME} ${IMAGE_NAME}-test-self-signed-ssl
+  ct_s2i_build_as_df file://${test_dir}/self-signed-ssl ${IMAGE_NAME} ${IMAGE_NAME}-test-self-signed-ssl ${s2i_args} $(ct_build_s2i_npm_variables)
   docker run -d --user=100001 ${run_args} --cidfile=${cid_file} ${IMAGE_NAME}-test-self-signed-ssl
   test_connection ${test_port_ssl} https
   check_result $?
@@ -212,7 +228,11 @@ check_result $?
 test_application
 
 # Test application with random uid
-CONTAINER_ARGS="-u 12345" test_application
+CONTAINER_ARGS="--user 12345" test_application
+
+echo "Testing npm availibility"
+ct_npm_works
+check_result $?
 
 cleanup
 
